@@ -19,13 +19,25 @@
 """
 This module calculates impeding factor delays
 
+Assumptions:
+1. This code assumes that each impeding factor is triggered only if the maximum repair class per story for the repair
+sequences that affect the impeding facotr is equal or greater than 1. For example, the impeding factor for contractor
+mobilization of structural repairs is only triggered in repair sequence 1 (structural) has a repair class equal or
+greater than 1 in any story.
+2. The extent of the impeding factor is linearly proportional to the number of stories that triggered the impeding factor.
+For example, in a three story building the repair class of repair sequence 1 is equal to 1 for the first story and 0 for
+the other two stories. In that case, the impeding factor for structural contractor mobilization is the sampled value
+multiplied by 1/3 since only 1 of the 4 stories triggered that impeding factor.
+
 """
 
-def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_input, DL_summary_input, n_structural, t_structural, n_facade, t_facade, IF_delays_input, output_path):
+def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_input, DL_summary_input,
+            repair_cost_threshold, n_structural, t_structural, n_facade, t_facade, IF_delays_input, output_path):
     import numpy as np
     import pandas as pd
     import os
-    
+
+    # Parse inputs
     DMG = pd.read_csv(DMG_input, low_memory=False, header=None)
     PG = DMG.loc[1, 1:] #performance groups indicating the location of fragility
     
@@ -38,14 +50,14 @@ def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_
     disp_RC1=IF_delays['Dispersion_RC=1']
     disp_RC2=IF_delays['Dispersion_RC>1']
 
-
     cases_collapse = DL_summary["collapses/collapsed"]
     indx_collapse = cases_collapse[cases_collapse==1].index
     cases_irreparable = DL_summary["reconstruction/irreparable"]
     indx_irreparable = cases_irreparable[cases_irreparable==1].index
     indx_all = DL_summary["#Num"]
     indx_repairable =  indx_all.drop(indx_collapse.union(indx_irreparable))
-    
+    total_repair_cost_ratio = DL_summary["reconstruction/cost"][indx_repairable]/total_cost
+
     story_FG = []
     for i in range(n_PG):
         story_FG.append((PG[i+1][len(PG[i+1])-4:len(PG[i+1])-1]))
@@ -110,10 +122,10 @@ def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_
     
     IF_finance_mat2 = np.append(IF_finance, np.zeros(len(indx_irreparable)+len(indx_collapse)))
     
-    #contractor mobilization for repair sequence 1
+    #contractor mobilization for all the components repair sequence 1
     IF_cm_rs1 = (n1*np.random.lognormal(np.log(med_RC1[6]),disp_RC1[6],len(indx_repairable)) + n2*np.random.lognormal(np.log(med_RC2[6]),disp_RC2[6],len(indx_repairable)))/len(story)
     IF_cm_rs1_mat2 = np.append(IF_cm_rs1, np.zeros(len(indx_irreparable)+len(indx_collapse)))
-    
+
     #contractor mobilization for repair sequence 2
     n1=np.zeros(len(indx_repairable))
     n2=np.zeros(len(indx_repairable))
@@ -125,9 +137,10 @@ def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_
             elif ((RCmax_RS[i,x])>1):
                 n2[i]=n2[i]+1
             x = x+7
+    # contractor mobilization for all the components in repair sequence 2
     IF_cm_rs2 = (n1*np.random.lognormal(np.log(med_RC1[7]),disp_RC1[7],len(indx_repairable)) + n2*np.random.lognormal(np.log(med_RC2[7]),disp_RC2[7],len(indx_repairable)))/len(story)
     IF_cm_rs2_mat2 = np.append(IF_cm_rs2, np.zeros(len(indx_irreparable)+len(indx_collapse)))
-    
+
     #contractor mobilization for repair sequence 3
     n1=np.zeros(len(indx_repairable))
     n2=np.zeros(len(indx_repairable))
@@ -139,9 +152,10 @@ def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_
             elif ((RCmax_RS[i,x])>1):
                 n2[i]=n2[i]+1
             x = x+7
+    # contractor mobilization for all the components in repair sequence 3
     IF_cm_rs3 = (n1*np.random.lognormal(np.log(med_RC1[8]),disp_RC1[8],len(indx_repairable)) + n2*np.random.lognormal(np.log(med_RC2[8]),disp_RC2[8],len(indx_repairable)))/len(story)  
     IF_cm_rs3_mat2 = np.append(IF_cm_rs3, np.zeros(len(indx_irreparable)+len(indx_collapse)))
-        
+
     #contractor mobilization for repair sequence 4
     n1=np.zeros(len(indx_repairable))
     n2=np.zeros(len(indx_repairable))
@@ -153,9 +167,10 @@ def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_
             elif ((RCmax_RS[i,x])>1):
                 n2[i]=n2[i]+1
             x = x+7
+    # contractor mobilization for all the components in repair sequence 4
     IF_cm_rs4 = (n1*np.random.lognormal(np.log(med_RC1[9]),disp_RC1[9],len(indx_repairable)) + n2*np.random.lognormal(np.log(med_RC2[9]),disp_RC2[9],len(indx_repairable)))/len(story) 
     IF_cm_rs4_mat2 = np.append(IF_cm_rs4, np.zeros(len(indx_irreparable)+len(indx_collapse)))
-    
+
     #contractor mobilization for repair sequence 5
     n1=np.zeros(len(indx_repairable))
     n2=np.zeros(len(indx_repairable))
@@ -167,9 +182,10 @@ def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_
             elif ((RCmax_RS[i,x])>1):
                 n2[i]=n2[i]+1
             x = x+7
+    # contractor mobilization for all the components in repair sequence 5
     IF_cm_rs5 = (n1*np.random.lognormal(np.log(med_RC1[10]),disp_RC1[10],len(indx_repairable)) + n2*np.random.lognormal(np.log(med_RC2[10]),disp_RC2[10],len(indx_repairable)))/len(story)
     IF_cm_rs5_mat2 = np.append(IF_cm_rs5, np.zeros(len(indx_irreparable)+len(indx_collapse)))
-    
+
     #contractor mobilization for repair sequence 6
     n1=np.zeros(len(indx_repairable))
     n2=np.zeros(len(indx_repairable))
@@ -181,9 +197,10 @@ def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_
             elif ((RCmax_RS[i,x])>1):
                 n2[i]=n2[i]+1
             x = x+7
+    # contractor mobilization for all the components in repair sequence 6
     IF_cm_rs6 = (n1*np.random.lognormal(np.log(med_RC1[11]),disp_RC1[11],len(indx_repairable)) + n2*np.random.lognormal(np.log(med_RC2[11]),disp_RC2[11],len(indx_repairable)))
     IF_cm_rs6_mat2 = np.append(IF_cm_rs6, np.zeros(len(indx_irreparable)+len(indx_collapse)))
-    
+
     #contractor mobilization for repair sequence 7
     n1=np.zeros(len(indx_repairable))
     n2=np.zeros(len(indx_repairable))
@@ -195,9 +212,10 @@ def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_
             elif ((RCmax_RS[i,x])>1):
                 n2[i]=n2[i]+1
             x = x+7
+    # contractor mobilization for all the components in repair sequence 7
     IF_cm_rs7 = (n1*np.random.lognormal(np.log(med_RC1[12]),disp_RC1[12],len(indx_repairable)) + n2*np.random.lognormal(np.log(med_RC2[12]),disp_RC2[12],len(indx_repairable)))/len(story)
     IF_cm_rs7_mat2 = np.append(IF_cm_rs7, np.zeros(len(indx_irreparable)+len(indx_collapse)))
-    
+
     # Stabilization
     IF_stab_RC5 = np.zeros((len(RCmax_RS))) #structrual repairs
     IF_stab_mob = 0
@@ -214,7 +232,7 @@ def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_
         elif N_DMG_RC5_tot[i] >=n_structural[1]:
            IF_stab_RC5[i] = IF_stab_mob + (N_DMG_RC5_tot[i]*np.random.lognormal(np.log(t_structural[1]),0.4))/2
            
-    IF_stab_RC3 = np.zeros((len(RCmax_RS))) #curtain walls
+    IF_stab_RC3 = np.zeros((len(RCmax_RS))) # curtain walls
     N_DMG_RC3_RS_mat = np.squeeze(N_DMG_RC3_RS)[:,np.arange(2,len(np.squeeze(N_DMG_RC3_RS).transpose()),7)]
     N_DMG_RC3_RS3 = sum(N_DMG_RC3_RS_mat.transpose())
     
@@ -231,15 +249,42 @@ def IF_calc(total_cost, coeff_financing, RCmax_RS, N_DMG_RC5, N_DMG_RC3_RS, DMG_
             
         
     #%% impeding factor delays for irreparable buildings
-    IF_reconst_eng = np.random.lognormal(np.log(med_RC2[13]),disp_RC2[13],len(indx_irreparable)+len(indx_collapse))
+    IF_reconst_eng   = np.random.lognormal(np.log(med_RC2[13]),disp_RC2[13],len(indx_irreparable)+len(indx_collapse))
     IF_reconst_insur = np.random.lognormal(np.log(med_RC2[14]),disp_RC2[14],len(indx_irreparable)+len(indx_collapse))
     IF_reconst_demol = np.random.lognormal(np.log(med_RC2[15]),disp_RC2[15],len(indx_irreparable)+len(indx_collapse))
     
     IF_reconst = np.maximum(IF_reconst_eng, IF_reconst_insur, IF_reconst_demol)
     IF_reconst_mat2 = np.append(np.zeros(len(indx_repairable)),IF_reconst)
 
-    IF_matrix = [IF_inspection_mat2.astype(object), IF_eng_mat2.astype(object), IF_permit_mat2.astype(object), IF_finance_mat2.astype(object), IF_cm_rs1_mat2.astype(object), 
-                 IF_cm_rs2_mat2.astype(object), IF_cm_rs3_mat2.astype(object), IF_cm_rs4_mat2.astype(object), IF_cm_rs5_mat2.astype(object), 
+    # Eliminate any impeding factor for simulations with total repair cost ratio lower than the threshold
+    j = 0
+    for i in indx_repairable:
+        if total_repair_cost_ratio[i] < repair_cost_threshold:
+            IF_eng_mat2[j] = 0
+            IF_permit_mat2[j] = 0
+            IF_finance_mat2[j] = 0
+            IF_cm_rs1_mat2[j] = 0
+            IF_cm_rs2_mat2[j] = 0
+            IF_cm_rs3_mat2[j] = 0
+            IF_cm_rs4_mat2[j] = 0
+            IF_cm_rs5_mat2[j] = 0
+            IF_cm_rs6_mat2[j] = 0
+            IF_cm_rs7_mat2[j] = 0
+
+            IF_eng[j] = 0
+            IF_permit[j] = 0
+            IF_finance[j] = 0
+            IF_cm_rs1[j] = 0
+            IF_cm_rs2[j] = 0
+            IF_cm_rs3[j] = 0
+            IF_cm_rs4[j] = 0
+            IF_cm_rs5[j] = 0
+            IF_cm_rs6[j] = 0
+            IF_cm_rs7[j] = 0
+        j += 1
+
+    IF_matrix = [IF_inspection_mat2.astype(object), IF_eng_mat2.astype(object), IF_permit_mat2.astype(object), IF_finance_mat2.astype(object), IF_cm_rs1_mat2.astype(object),
+                 IF_cm_rs2_mat2.astype(object), IF_cm_rs3_mat2.astype(object), IF_cm_rs4_mat2.astype(object), IF_cm_rs5_mat2.astype(object),
                  IF_cm_rs6_mat2.astype(object), IF_cm_rs7_mat2.astype(object), IF_stab_mat2.astype(object), IF_reconst_mat2.astype(object)]
     
     

@@ -21,7 +21,7 @@ This module calculates component repair time and performs worker allocation adju
 
 """
 
-def RT_calc(n_elev, rep_phases, fl_area, RCtable_input, RC_input, DMG_input, DV_rec_time_input, DL_summary_input, max_num_workers, output_path):
+def RT_calc(n_elev, rep_phases, fl_area, RCtable_input, RC_input, DMG_input, DV_rec_time_input, DL_summary_input, total_cost, repair_cost_threshold, max_num_workers, output_path):
     import sys
     import numpy as np
     import pandas as pd
@@ -52,6 +52,7 @@ def RT_calc(n_elev, rep_phases, fl_area, RCtable_input, RC_input, DMG_input, DV_
     indx_irreparable = cases_irreparable[cases_irreparable==1].index
     indx_all = DL_summary["#Num"]
     indx_repairable =  indx_all.drop(indx_collapse.union(indx_irreparable))
+    total_repair_cost_ratio = DL_summary["reconstruction/cost"][indx_repairable]/total_cost
     
     for i in range(len(DMG_all)):
         if int(DMG.loc[i+4, 0]) in indx_irreparable:            
@@ -351,16 +352,25 @@ def RT_calc(n_elev, rep_phases, fl_area, RCtable_input, RC_input, DMG_input, DV_
     RT_RC2_RS_days[:,np.arange(5,len(RT_RC2_RS_days.T),7)] = np.tile(RT_elev_adj,(len(story),1)).T
     
     RT_RC3_RS_days = np.divide(np.squeeze(RT_RC3_RS), N_Wrk_RC3_RS_adj3, out=np.zeros_like(np.squeeze(RT_RC3_RS)), where=N_Wrk_RC3_RS_adj3!=0) 
-    RT_RC4_RS_days = np.divide(np.squeeze(RT_RC4_RS), N_Wrk_RC4_RS_adj3, out=np.zeros_like(np.squeeze(RT_RC4_RS)), where=N_Wrk_RC4_RS_adj3!=0) 
-    
-    
+    RT_RC4_RS_days = np.divide(np.squeeze(RT_RC4_RS), N_Wrk_RC4_RS_adj3, out=np.zeros_like(np.squeeze(RT_RC4_RS)), where=N_Wrk_RC4_RS_adj3!=0)
+
+    # Eliminate any repair time for repairable simulations with total repair cost ratio lower than the threshold
+    j = 0
+    for i in indx_repairable:
+        if total_repair_cost_ratio[i] < repair_cost_threshold:
+            RT_RC2_RS_days[j, :] = 0
+            RT_RC3_RS_days[j, :] = 0
+            RT_RC4_RS_days[j, :] = 0
+        j += 1
+
+    # Compile outputs of repair times per repair class and repair sequence
     RT_RC2_RS_days_mat=np.vstack((header_, (RT_RC2_RS_days)))
     pd.DataFrame(np.c_[col.T, RT_RC2_RS_days_mat]).to_csv(os.path.join(output_path,r'RT_RSeq_FR.csv'), header=False, index=False)
     RT_RC3_RS_days_mat=np.vstack((header_, (RT_RC3_RS_days)))
-    pd.DataFrame(np.c_[col.T, RT_RC3_RS_days_mat]).to_csv(os.path.join(output_path,r'RT_RSeq_RO.csv.csv'), header=False, index=False)
+    pd.DataFrame(np.c_[col.T, RT_RC3_RS_days_mat]).to_csv(os.path.join(output_path,r'RT_RSeq_RO.csv'), header=False, index=False)
     RT_RC4_RS_days_mat=np.vstack((header_, (RT_RC4_RS_days)))
     pd.DataFrame(np.c_[col.T, RT_RC4_RS_days_mat]).to_csv(os.path.join(output_path,r'RT_RSeq_SiP.csv'), header=False, index=False)
-       
+
     print('Repair time calculation is completed')
     return RT_RC2_RS_days, RT_RC3_RS_days, RT_RC4_RS_days, N_DMG_RC5, N_DMG_RC3_RS       
                 

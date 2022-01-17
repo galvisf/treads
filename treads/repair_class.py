@@ -147,7 +147,12 @@ def RC_calc(DMG_input, RCtable_input, DL_summary_input, output_path):
     RC.to_csv(os.path.join(output_path,r'RC_component.csv'), header=False, index=False)
     print('Repair class matrix is generated')
     
-    #create a matrix that contains the maximum repair class per repair sequence per realization across the building 
+    # Create a matrix that contains the representatice repair class per repair sequence per realization across the building
+    # This matrix is used to sample the impeding factors.
+    #
+    # cols = N_stories * 7 repair sequences
+    # rows = n_realizations
+
     RCmax_RS=[]
     for i in range(len(indx_repairable)): 
         RC_realization = RC_matrix[i,:]
@@ -157,7 +162,10 @@ def RC_calc(DMG_input, RCtable_input, DL_summary_input, output_path):
                 indx_ST = list(locate(story_FG, lambda x: x == story[j]))
                 indx_RS = list(locate(RS_FG, lambda x: x == RS[k]))
                 indx_intersect = list(set.intersection(set(indx_ST),set(indx_RS)))
-                RCmax_RS[i].append(np.max((RC_realization[indx_intersect]),initial=0))
+
+                ## Assuming that the representative repair class is the maximum of all the fragility groups of this repair sequence at this story
+                RC_representative = np.max((RC_realization[indx_intersect]), initial=0)
+                RCmax_RS[i].append(RC_representative)
 
     print('Repair class calculation is completed')
     return RCmax_RS, RC, indx_repairable, indx_irreparable, indx_collapse, story

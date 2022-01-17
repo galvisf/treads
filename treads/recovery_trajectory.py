@@ -21,7 +21,8 @@ This module calculates recovery trajectories
 
 """
 
-def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx_irreparable, indx_collapse, IF_output, RT_RC2_RS_days, RT_RC3_RS_days, RT_RC4_RS_days, RCmax_RS, N_DMG_RC3_RS, output_path): 
+def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx_irreparable, \
+               indx_collapse, IF_output, RT_RC2_RS_days, RT_RC3_RS_days, RT_RC4_RS_days, RCmax_RS, N_DMG_RC3_RS, output_path):
     import numpy as np
     import pandas as pd
     import os
@@ -40,7 +41,7 @@ def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx
     IF_cm_rs7 = IF_output[10]
     IF_stab = IF_output[11]
     IF_reconst = IF_output[12]
-    
+
     story_bm = rep_phases[len(rep_phases)-1] #number of basement stories
     story_gr = sum(rep_phases) - story_bm #number of above grade stories
     
@@ -58,7 +59,7 @@ def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx
     
 ##downtime to functional recovery
     RT_RC_RS_days = RT_RC2_RS_days
-    
+
     #downtime calculation for repair path
     DT_A1 = np.zeros((len(indx_repairable), len(usability_repairable)))
     DT_A2 = np.zeros((len(indx_repairable), len(usability_repairable)))
@@ -212,7 +213,8 @@ def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx
         pd.DataFrame(RT_RS5).to_excel(writer, sheet_name='RSeq5', header=story[0:story_gr], index_label='#Num')
         pd.DataFrame(RT_RS6).to_excel(writer, sheet_name='RSeq6', header=story[0:story_gr], index_label='#Num')
         pd.DataFrame(RT_RS7).to_excel(writer, sheet_name='RSeq7', header=story[0:story_gr], index_label='#Num')
-    
+
+    # remove IF if repair time for the repair path is zero
     a=np.zeros(len(indx_repairable))
     b=np.zeros(len(indx_repairable))
     c=np.zeros(len(indx_repairable))
@@ -301,10 +303,10 @@ def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx
             DT_D[i,indx_max]=DT_D[i,2]
             DT_D[i,2]=0   
     
-    #ensure that the downtime is not less than the inspection time in each repair phase
+    #ensure that the downtime is not less than the inspection time + stability time in each repair phase
     for i in range(len(DT_final_repairable)):
         if DT_final_repairable[i,2]==0:
-            DT_final_repairable[i,2:][DT_final_repairable[i,2:]==0]=IF_inspection[i]      
+            DT_final_repairable[i,2:][DT_final_repairable[i,2:]==0]=IF_inspection[i] + IF_stab[i]
     #for i in range(len(DT_A)):
         if DT_A[i,2]==0:
             DT_A[i,2:][DT_A[i,2:]==0]=IF_inspection[i] 
@@ -367,8 +369,11 @@ def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx
     
 ##downtime to reoccupancy
     RT_RC_RS_days = RT_RC3_RS_days
-    
+
     #downtime calculation for repair path
+    # matrices per repair path
+    #   cols = time to reach each usability percentage (increasing is steps of 1/story_bm since are each repair phase)
+    #   rows = simulations
     DT_A1 = np.zeros((len(indx_repairable), len(usability_repairable)))
     DT_A2 = np.zeros((len(indx_repairable), len(usability_repairable)))
     DT_A4 = np.zeros((len(indx_repairable), len(usability_repairable)))
@@ -376,7 +381,8 @@ def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx
     DT_B = np.zeros((len(indx_repairable), len(usability_repairable)))
     DT_C = np.zeros((len(indx_repairable), len(usability_repairable)))
     DT_D = np.zeros((len(indx_repairable), len(usability_repairable)))
-    
+
+    # Calculating the downtime for the first increase in usability from zero starting with the top repair phase
     max_RTbm_2_4_5 = np.maximum.reduce([RT_RC_RS_days[:,-6-7*(story_bm-1):-5:7], RT_RC_RS_days[:,-4-7*(story_bm-1):-3:7], RT_RC_RS_days[:,-3-7*(story_bm-1):-2:7]])
     DT_A1[:,2] = IF_inspection + np.maximum.reduce([IF_stab, IF_finance, IF_cm_rs1, IF_eng+IF_permit]) + np.amax(RT_RC_RS_days[:,-7-7*(story_bm-1):-6:7]+max_RTbm_2_4_5, axis=1)
     DT_A2[:,2] = IF_inspection + np.maximum.reduce([IF_stab, IF_finance, IF_cm_rs2, IF_eng+IF_permit]) + np.amax(RT_RC_RS_days[:,-6-7*(story_bm-1):-5:7], axis=1)
@@ -519,7 +525,7 @@ def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx
         pd.DataFrame(RT_RS5).to_excel(writer, sheet_name='RSeq5', header=story[0:story_gr], index_label='#Num')
         pd.DataFrame(RT_RS6).to_excel(writer, sheet_name='RSeq6', header=story[0:story_gr], index_label='#Num')
         pd.DataFrame(RT_RS7).to_excel(writer, sheet_name='RSeq7', header=story[0:story_gr], index_label='#Num')
-    
+
     a=np.zeros(len(indx_repairable))
     b=np.zeros(len(indx_repairable))
     c=np.zeros(len(indx_repairable))
@@ -591,10 +597,11 @@ def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx
             indx_max = max(np.squeeze(indx))
             DT_D[i,indx_max]=DT_D[i,2]
             DT_D[i,2]=0
-    
+
+    # ensure that the downtime is not less than the inspection time + stability time in each repair phase
     for i in range(len(DT_final_repairable)):
         if DT_final_repairable[i,2]==0:
-            DT_final_repairable[i,2:][DT_final_repairable[i,2:]==0]=IF_inspection[i]        
+            DT_final_repairable[i,2:][DT_final_repairable[i,2:]==0]=IF_inspection[i] + IF_stab[i]
     #for i in range(len(DT_A)):
         if DT_A[i,2]==0:
             DT_A[i,2:][DT_A[i,2:]==0]=IF_inspection[i] 
@@ -631,7 +638,7 @@ def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx
     
 ##downtime to shelter-in-place
     RT_RC_RS_days = RT_RC4_RS_days
-    
+
     #repair paths:
     DT_A1 = np.zeros((len(indx_repairable), len(usability_repairable)))
     DT_A2 = np.zeros((len(indx_repairable), len(usability_repairable)))
@@ -845,7 +852,7 @@ def RecTr_calc(story, rep_phases, Qt_facade, reconst_time, indx_repairable, indx
 
     for i in range(len(DT_final_repairable)):
         if DT_final_repairable[i,2]==0:
-            DT_final_repairable[i,2:][DT_final_repairable[i,2:]==0]=IF_inspection[i]        
+            DT_final_repairable[i,2:][DT_final_repairable[i,2:]==0]=IF_inspection[i] + IF_stab[i]
     #for i in range(len(DT_A)):
         if DT_A[i,2]==0:
             DT_A[i,2:][DT_A[i,2:]==0]=IF_inspection[i] 
